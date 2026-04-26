@@ -92,10 +92,10 @@ namespace Macro
             ApplicationManager.Instance.Init();
             _adManager = ServiceResolver.GetService<AdManager>();
             _adManager.InitializeAdUrls();
-            if (CheckSponsor() == false)
-            {
-                _coroutineHandler.Start(ShowAd(true));
-            }
+            //if (CheckSponsor() == false)
+            //{
+            //    _coroutineHandler.Start(ShowAd(true));
+            //}
             CheckVersion();
 
             if (_config.OpenProcessPreview)
@@ -119,19 +119,7 @@ namespace Macro
         }
         protected override void OnClosing(CancelEventArgs e)
         {
-            e.Cancel = true;
-            if (_isShutdownHandled)
-            {
-                return;
-            }
-            _isShutdownHandled = true;
-            _coroutineHandler.Start(ShowAd(false), () =>
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    Application.Current.Shutdown();
-                });
-            });
+            Application.Current.Shutdown();
         }
         private void InitEvent()
         {
