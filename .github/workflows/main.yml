@@ -1,0 +1,16 @@
+name: Build Macro
+on: [push]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1
+      - name: Build
+        run: msbuild Macro.sln /p:Configuration=Release
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Macro-Release
+          path: Macro/bin/Release/
