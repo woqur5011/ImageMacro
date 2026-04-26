@@ -63,6 +63,13 @@ namespace Macro.Infrastructure.Controller
 
             var matchResult = CalculateSimilarityAndLocation(eventInfoModel.Image, capturedImage, eventInfoModel);
 
+            // 상태 필터링 및 현재 상태 확인
+            if (eventInfoModel.TargetState != "Any" && eventInfoModel.TargetState != _currentState)
+            {
+                return new EventResult(false, null);
+            }
+            LogHelper.Debug($"[Seq] CurrentIndex: {eventInfoModel.ItemIndex} | CurrentState: {_currentState}");
+
             var similarity = matchResult.Item1;
             Point2D matchedLocation = matchResult.Item2;
 
@@ -150,6 +157,13 @@ namespace Macro.Infrastructure.Controller
                     }
                 }
                 TaskHelper.TokenCheckDelay(eventInfoModel.AfterDelay, cancellationToken);
+
+                // 상태 업데이트 로직 추가
+                if (!string.IsNullOrEmpty(eventInfoModel.NewState))
+                {
+                    _currentState = eventInfoModel.NewState;
+                    LogHelper.Debug($"[Seq] State Changed to: {_currentState}");
+                }
 
                 return new EventResult(true, nextModel);
             }

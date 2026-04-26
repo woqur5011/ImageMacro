@@ -96,8 +96,14 @@
             <mah:NumericUpDown x:Name="numRepeatCount" Value="{Binding Path=RepeatCount, Mode=TwoWay}" TextAlignment="Left" Minimum="0" NumericInputMode="Numbers" ></mah:NumericUpDown>
         </StackPanel>
 
+        <!-- 상태 설정 -->
+        <Label Grid.Row="9" Grid.Column="0" Content="Target State"></Label>
+        <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Path=TargetState, Mode=TwoWay}"></TextBox>
+        <Label Grid.Row="10" Grid.Column="0" Content="New State"></Label>
+        <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding Path=NewState, Mode=TwoWay}"></TextBox>
+
         <!-- 버튼 영역 -->
-        <DockPanel HorizontalAlignment="Center" Grid.Row="10" Grid.ColumnSpan="2">
+        <DockPanel HorizontalAlignment="Center" Grid.Row="11" Grid.ColumnSpan="2">
             <Button x:Name="btnSave" Content="저장" Width="200"></Button>
         </DockPanel>
     </Grid>
