@@ -1,0 +1,13 @@
+{
+  "Language": "Kor",
+  "SavePath": "",
+  "ProcessPeriod": "1",
+  "ItemDelay": "0",
+  "DragDelay": "10",
+  "Similarity": "75",
+  "SearchImageResultDisplay": true,
+  "VersionCheck": true,
+  "MacroMode": "BatchMode",
+  "AccessKey": "",
+  "OpenProcessPreview": true
+}
