@@ -232,13 +232,16 @@ namespace Macro.Infrastructure.Controller
         {
             for (int i = 0; i < eventInfoModels.Count; ++i)
             {
+                // 로그 추가
+                LogHelper.Debug($"[Seq] Processing Item Index: {i}, EventItemIndex: {eventInfoModels[i].ItemIndex}, State: {_currentState}");
+
                 if (_screenCaptureManager.CaptureProcessWindow(process,
                     out Bitmap sourceBmp) == false)
                 {
                     TaskHelper.TokenCheckDelay(_config.ProcessPeriod, cancellationToken);
                     continue;
                 }
-
+                
                 Draw(sourceBmp);
 
                 var model = eventInfoModels[i];

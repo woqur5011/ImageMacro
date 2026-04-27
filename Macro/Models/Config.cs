@@ -146,6 +146,17 @@ namespace Macro.Models
             }
         }
 
+        private System.Collections.ObjectModel.ObservableCollection<string> _states = new System.Collections.ObjectModel.ObservableCollection<string>();
+        public System.Collections.ObjectModel.ObservableCollection<string> States
+        {
+            get => _states;
+            set
+            {
+                _states = value;
+                OnPropertyChanged(nameof(States));
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private void OnPropertyChanged(string propertyName)
