@@ -19,6 +19,8 @@ namespace Macro.Infrastructure.Controller
     {
         private readonly InputEventExecutor _eventProcessorHandler;
         private CacheDataManager _cacheDataManager;
+        private string _currentState = "Any";
+        
         public SequentialModeController(Config config,
             InputEventExecutor inputEventProcessor,
             CacheDataManager cacheDataManager) : base(config)
