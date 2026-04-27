@@ -486,8 +486,9 @@ namespace Macro
                 var viewModel = eventListView.DataContext<EventListViewModel>();
                 var eventInfos = new ArrayQueue<EventInfoModel>(viewModel.EventItems.Count);
                 eventInfos.AddRange(viewModel.EventItems.Where(r => r.IsChecked == true));
-                _macroExecutionController.Start(eventInfos,
-                    process);
+                _macroExecutionController.Start(eventInfos, process);
+                // 실행 종료 감지 로직 필요 (간단하게 일단 로딩 숨김 처리 추가)
+                ApplicationManager.HideProgressbar();
             });
         }
 
