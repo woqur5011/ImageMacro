@@ -44,10 +44,10 @@
                         </Grid.ColumnDefinitions>
 
                         <Label Grid.Row="0" Grid.Column="0" Content="{Binding Path=Language, Source={StaticResource LabelLocator} }"></Label>
-                        <ComboBox Grid.Row="0" Grid.Column="1" SelectedValue="{Binding Path=Config.Language, Mode=TwoWay}"></ComboBox>
+                        <ComboBox Name="comboLanguage" Grid.Row="0" Grid.Column="1" SelectedValue="{Binding Path=Config.Language, Mode=TwoWay}"></ComboBox>
 
                         <Label Grid.Row="1" Grid.Column="0" Content="{Binding Path=SavePath, Source={StaticResource LabelLocator}}"></Label>
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Path=Config.SavePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Name="txtSavePath" Grid.Row="1" Grid.Column="1" Text="{Binding Path=Config.SavePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             mah:TextBoxHelper.ButtonCommand="{Binding SavePathButtonCmd}"
                             mah:TextBoxHelper.ButtonCommandParameter="{Binding ElementName=txtSavePath}"/>
 
@@ -96,7 +96,7 @@
                         </DockPanel>
 
                         <Label Grid.Row="9" Grid.Column="0" Content="{Binding Path=MacroMode, Source={StaticResource LabelLocator}}"></Label>
-                        <ComboBox Grid.Row="9" Grid.Column="1" SelectedValue="{Binding Path=Config.MacroMode, Mode=TwoWay}"></ComboBox>
+                        <ComboBox Name="comboMacroMode" Grid.Row="9" Grid.Column="1" SelectedValue="{Binding Path=Config.MacroMode, Mode=TwoWay}"></ComboBox>
 
                         <Label Grid.Row="10" Grid.Column="0" Content="Parallel Search"></Label>
                         <ComboBox Grid.Row="10" Grid.Column="1" SelectedValue="{Binding Path=Config.EnableParallelSearch, Mode=TwoWay}">
@@ -120,9 +120,9 @@
 
                         <Label Grid.Row="13" Grid.Column="0" Content=""></Label>
 
-                        <Button Grid.Row="15" Grid.Column="0" Style="{DynamicResource MahApps.Styles.Button.Square}"
+                        <Button Name="btnSave" Grid.Row="15" Grid.Column="0" Style="{DynamicResource MahApps.Styles.Button.Square}"
                             Content="{Binding Path=Save, Source={StaticResource LabelLocator}}"></Button>
-                        <Button Grid.Row="15" Grid.Column="1" Style="{DynamicResource MahApps.Styles.Button.Square}"
+                        <Button Name="btnClose" Grid.Row="15" Grid.Column="1" Style="{DynamicResource MahApps.Styles.Button.Square}"
                             Content="{Binding Path=Close, Source={StaticResource LabelLocator}}" Background="DarkGray"></Button>
                     </Grid>
                 </DockPanel>
