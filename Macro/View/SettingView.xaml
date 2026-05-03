@@ -35,7 +35,6 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
@@ -119,9 +118,11 @@
                             </ComboBox.Items>
                         </ComboBox>
 
-                        <Button Grid.Row="16" Grid.Column="0" Style="{DynamicResource MahApps.Styles.Button.Square}"
+                        <Label Grid.Row="13" Grid.Column="0" Content=""></Label>
+
+                        <Button Grid.Row="15" Grid.Column="0" Style="{DynamicResource MahApps.Styles.Button.Square}"
                             Content="{Binding Path=Save, Source={StaticResource LabelLocator}}"></Button>
-                        <Button Grid.Row="16" Grid.Column="1" Style="{DynamicResource MahApps.Styles.Button.Square}"
+                        <Button Grid.Row="15" Grid.Column="1" Style="{DynamicResource MahApps.Styles.Button.Square}"
                             Content="{Binding Path=Close, Source={StaticResource LabelLocator}}" Background="DarkGray"></Button>
                     </Grid>
                 </DockPanel>
