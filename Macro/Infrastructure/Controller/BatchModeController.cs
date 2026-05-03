@@ -16,20 +16,11 @@ using Utils.Infrastructure;
 
 namespace Macro.Infrastructure.Controller
 {
-    internal class SearchResult
-    {
-        public int Similarity { get; set; }
-        public Point2D Location { get; set; }
-        public bool UseRoi { get; set; }
-        public IntRect RoiRect { get; set; }
-    }
-
     [Injectable(Dignus.DependencyInjection.LifeScope.Transient)]
     internal class BatchModeController : MacroModeControllerBase
     {
         private readonly InputEventExecutor _eventProcessorHandler;
         private readonly CacheDataManager _cacheDataManager;
-
         public BatchModeController(Config config,
             InputEventExecutor inputEventProcessorHandler,
             CacheDataManager cacheDataManager) : base(config)
@@ -51,9 +42,6 @@ namespace Macro.Infrastructure.Controller
             }
         }
 
-        private Bitmap _currentSourceBmp;
-        private Process _currentProcess;
-
         private void ProcessEventInfos(
             Process process,
             ArrayQueue<EventInfoModel> eventInfoModels,
@@ -65,306 +53,215 @@ namespace Macro.Infrastructure.Controller
                 return;
             }
 
-            _currentSourceBmp = sourceBmp;
-            _currentProcess = process;
-
-            try
+            using (sourceBmp)
             {
-                var results = SearchAllEventItems(sourceBmp, eventInfoModels, cancellationToken);
-
-                if (_config.SearchImageResultDisplay)
-                {
-                    DrawAllResults(sourceBmp, eventInfoModels, results);
-                }
-
                 Draw(sourceBmp);
 
-                if (cancellationToken.IsCancellationRequested)
+                var preResults = new ConcurrentDictionary<EventInfoModel, Tuple<int, Point2D>>();
+                if (_config.EnableParallelSearch && eventInfoModels.Count > 1)
                 {
-                    return;
-                }
-
-                ProcessMatchedEvents(process, eventInfoModels, results, cancellationToken);
-            }
-            finally
-            {
-                _currentSourceBmp?.Dispose();
-                _currentSourceBmp = null;
-            }
-        }
-
-        private ConcurrentDictionary<EventInfoModel, SearchResult> SearchAllEventItems(
-            Bitmap sourceBmp,
-            ArrayQueue<EventInfoModel> eventInfoModels,
-            CancellationToken cancellationToken)
-        {
-            var results = new ConcurrentDictionary<EventInfoModel, SearchResult>();
-
-            if (_config.EnableParallelSearch && eventInfoModels.Count > 1)
-            {
-                var options = new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = _config.ParallelSearchDegree > 0
-                        ? _config.ParallelSearchDegree
-                        : Environment.ProcessorCount
-                };
-
-                Parallel.ForEach(eventInfoModels, options, (model, loopState) =>
-                {
-                    if (cancellationToken.IsCancellationRequested || loopState.ShouldExitCurrentIteration)
+                    var options = new ParallelOptions
                     {
-                        loopState.Stop();
-                        return;
-                    }
+                        MaxDegreeOfParallelism = _config.ParallelSearchDegree > 0
+                            ? _config.ParallelSearchDegree
+                            : Environment.ProcessorCount
+                    };
 
-                    var result = SearchSingleItem(sourceBmp, model);
-                    results[model] = result;
-                });
-            }
-            else
-            {
-                foreach (var model in eventInfoModels)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
-                    var result = SearchSingleItem(sourceBmp, model);
-                    results[model] = result;
-                }
-            }
-
-            return results;
-        }
-
-        private SearchResult SearchSingleItem(Bitmap sourceBmp, EventInfoModel model)
-        {
-            var result = new SearchResult();
-            result.UseRoi = model.RoiDataInfo.IsExists();
-
-            if (result.UseRoi)
-            {
-                var newRect = _screenCaptureManager.AdjustRectForDPI(model.RoiDataInfo.RoiRect, model.RoiDataInfo.MonitorInfo);
-
-                int imageWidth = sourceBmp.Width;
-                int imageHeight = sourceBmp.Height;
-
-                if (newRect.Left < 0 || newRect.Right > imageWidth || newRect.Top < 0 || newRect.Bottom > imageHeight)
-                {
-                    newRect.Left = 0;
-                    newRect.Right = imageWidth;
-                    newRect.Top = 0;
-                    newRect.Bottom = imageHeight;
-                }
-                else
-                {
-                    newRect.Left = Math.Max(0, Math.Min(newRect.Left, imageWidth - 1));
-                    newRect.Right = Math.Max(newRect.Left + 1, Math.Min(newRect.Right, imageWidth - 1));
-                    newRect.Top = Math.Max(0, Math.Min(newRect.Top, imageHeight - 1));
-                    newRect.Bottom = Math.Max(newRect.Top + 1, Math.Min(newRect.Bottom, imageHeight - 1));
-                }
-
-                result.RoiRect = newRect;
-
-                Bitmap roiBmp = null;
-                try
-                {
-                    roiBmp = OpenCVHelper.CropImage(sourceBmp, newRect);
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.Error(ex);
-                }
-
-                if (roiBmp != null)
-                {
-                    var searchResult = OpenCVHelper.SearchOnly(roiBmp, model.Image);
-                    result.Similarity = searchResult.Item1;
-                    result.Location = new Point2D(
-                        searchResult.Item2.X + newRect.Left,
-                        searchResult.Item2.Y + newRect.Top);
-                }
-            }
-            else
-            {
-                var searchResult = OpenCVHelper.SearchOnly(sourceBmp, model.Image);
-                result.Similarity = searchResult.Item1;
-                result.Location = searchResult.Item2;
-            }
-
-            return result;
-        }
-
-        private void DrawAllResults(
-            Bitmap sourceBmp,
-            ArrayQueue<EventInfoModel> eventInfoModels,
-            ConcurrentDictionary<EventInfoModel, SearchResult> results)
-        {
-            using (var g = Graphics.FromImage(sourceBmp))
-            {
-                using (var pen = new Pen(Color.Red, 2))
-                {
-                    foreach (var model in eventInfoModels)
+                    Parallel.ForEach(eventInfoModels, options, (model, loopState) =>
                     {
-                        if (results.TryGetValue(model, out var result) &&
-                            result.Similarity >= _config.Similarity)
+                        if (cancellationToken.IsCancellationRequested || loopState.ShouldExitCurrentIteration)
                         {
-                            g.DrawRectangle(pen,
-                                new System.Drawing.Rectangle
-                                {
-                                    X = (int)result.Location.X,
-                                    Y = (int)result.Location.Y,
-                                    Width = model.Image.Width,
-                                    Height = model.Image.Height
-                                });
+                            loopState.Stop(); return;
+                        }
+                        preResults[model] = SearchEventItem(sourceBmp, model);
+                    });
+                }
+
+                for (int i = 0; i < eventInfoModels.Count; ++i)
+                {
+                    var model = eventInfoModels[i];
+
+                    Tuple<int, Point2D> pre = null;
+                    preResults.TryGetValue(model, out pre);
+
+                    var result = HandleEvent(sourceBmp, process, model, cancellationToken, pre);
+
+                    var nextEventInfo = result.NextEventInfoModel;
+                    if (nextEventInfo != null)
+                    {
+                        if (TryGetIndexByItemIndex(eventInfoModels, nextEventInfo.ItemIndex, out var sourceIndex))
+                        {
+                            i = sourceIndex - 1;
                         }
                     }
                 }
             }
         }
 
-        private void ProcessMatchedEvents(
-            Process process,
-            ArrayQueue<EventInfoModel> eventInfoModels,
-            ConcurrentDictionary<EventInfoModel, SearchResult> results,
-            CancellationToken cancellationToken)
+        private Tuple<int, Point2D> SearchEventItem(Bitmap sourceBmp, EventInfoModel model)
         {
-            for (int i = 0; i < eventInfoModels.Count; ++i)
+            if (model.RoiDataInfo.IsExists())
             {
-                var model = eventInfoModels[i];
+                var rect = _screenCaptureManager.AdjustRectForDPI(
+                    model.RoiDataInfo.RoiRect, model.RoiDataInfo.MonitorInfo);
 
-                if (!results.TryGetValue(model, out var result))
+                int imgW = sourceBmp.Width;
+                int imgH = sourceBmp.Height;
+
+                if (rect.Left < 0 || rect.Right > imgW || rect.Top < 0 || rect.Bottom > imgH)
                 {
-                    continue;
+                    rect.Left = 0; rect.Right = imgW; rect.Top = 0; rect.Bottom = imgH;
+                }
+                else
+                {
+                    rect.Left = Math.Max(0, Math.Min(rect.Left, imgW - 1));
+                    rect.Right = Math.Max(rect.Left + 1, Math.Min(rect.Right, imgW - 1));
+                    rect.Top = Math.Max(0, Math.Min(rect.Top, imgH - 1));
+                    rect.Bottom = Math.Max(rect.Top + 1, Math.Min(rect.Bottom, imgH - 1));
                 }
 
-                if (result.Similarity < _config.Similarity)
+                Bitmap roiBmp = null;
+                try
                 {
-                    TaskHelper.TokenCheckDelay(_config.ItemDelay, cancellationToken);
-                    continue;
+                    roiBmp = OpenCVHelper.CropImage(sourceBmp, rect);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Error(ex);
+                    return Tuple.Create(0, new Point2D());
                 }
 
-                var handleResult = HandleEvent(process, model, result, cancellationToken);
-
-                var nextEventInfo = handleResult.NextEventInfoModel;
-                if (nextEventInfo != null)
+                if (roiBmp != null)
                 {
-                    if (TryGetIndexByItemIndex(eventInfoModels, nextEventInfo.ItemIndex, out var sourceIndex))
+                    using (roiBmp)
                     {
-                        i = sourceIndex - 1;
+                        var r = OpenCVHelper.SearchOnly(roiBmp, model.Image);
+                        return Tuple.Create(r.Item1, new Point2D(r.Item2.X + rect.Left, r.Item2.Y + rect.Top));
                     }
                 }
+                return Tuple.Create(0, new Point2D());
             }
-        }
-
-        private IntPtr GetWindowHandle(Process process, out ApplicationTemplate template)
-        {
-            template = TemplateContainer<ApplicationTemplate>.Find(process.ProcessName);
-
-            if (string.IsNullOrEmpty(template.HandleName))
+            else
             {
-                return process.MainWindowHandle;
+                return OpenCVHelper.SearchOnly(sourceBmp, model.Image);
             }
-
-            var item = NativeHelper.GetChildHandles(process.MainWindowHandle)
-                .FirstOrDefault(r => r.Item1.Equals(template.HandleName));
-
-            return item != null ? item.Item2 : process.MainWindowHandle;
         }
 
         private EventResult HandleEvent(
+            Bitmap capturedImage,
             Process process,
-            EventInfoModel model,
-            SearchResult result,
-            CancellationToken cancellationToken)
+            EventInfoModel eventInfoModel,
+            CancellationToken cancellationToken,
+            Tuple<int, Point2D> preSearch = null)
         {
-            var windowHandle = GetWindowHandle(process, out var template);
-            var matchedLocation = result.Location;
+            int similarity;
+            Point2D matchedLocation;
 
-            LogHelper.Debug($"Similarity : {result.Similarity} % max Loc : X : {matchedLocation.X} Y: {matchedLocation.Y}");
-
-            if (model.SubEventItems.Count > 0)
+            if (preSearch != null)
             {
-                ProcessSubEventTriggers(process, model, cancellationToken);
+                similarity = preSearch.Item1;
+                matchedLocation = preSearch.Item2;
             }
-            else if (model.SameImageDrag == true)
+            else
             {
-                Bitmap searchBmp = _currentSourceBmp;
-                IntRect roiRect = default;
-                bool useRoi = result.UseRoi;
+                var copyBitmap = (Bitmap)capturedImage.Clone();
+                var matchResult = CalculateSimilarityAndLocation(eventInfoModel.Image, copyBitmap, eventInfoModel);
+                similarity = matchResult.Item1;
+                matchedLocation = matchResult.Item2;
+                Draw(copyBitmap);
+                copyBitmap.Dispose();
+            }
 
-                if (useRoi && _currentSourceBmp != null)
+            LogHelper.Debug($"Similarity : {similarity} % max Loc : X : {matchedLocation.X} Y: {matchedLocation.Y}");
+
+            if (similarity < _config.Similarity)
+            {
+                TaskHelper.TokenCheckDelay(_config.ItemDelay, cancellationToken);
+                return new EventResult(false, null);
+            }
+
+            if (eventInfoModel.SubEventItems.Count > 0)
+            {
+                ProcessSubEventTriggers(process, eventInfoModel, cancellationToken);
+            }
+            else if (eventInfoModel.SameImageDrag == true)
+            {
+                for (int i = 0; i < eventInfoModel.MaxDragCount; ++i)
                 {
-                    searchBmp = OpenCVHelper.CropImage(_currentSourceBmp, result.RoiRect);
-                    roiRect = result.RoiRect;
-                }
-
-                for (int i = 0; i < model.MaxDragCount; ++i)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
                     var locations = OpenCVHelper.MultipleSearch(
-                        searchBmp, model.Image, _config.Similarity, 2, false);
+                        capturedImage, eventInfoModel.Image, _config.Similarity, 2, false);
 
                     if (locations.Count > 1)
                     {
                         var startPoint = new Point2D(
-                            locations[0].X + model.Image.Width / 2 + (useRoi ? roiRect.Left : 0),
-                            locations[0].Y + model.Image.Height / 2 + (useRoi ? roiRect.Top : 0));
-                        startPoint.X += _eventProcessorHandler.GetRandomValue(0, model.Image.Width / 2);
-                        startPoint.Y += _eventProcessorHandler.GetRandomValue(0, model.Image.Height / 2);
+                            locations[0].X + eventInfoModel.Image.Width / 2,
+                            locations[0].Y + eventInfoModel.Image.Height / 2);
+
+                        startPoint.X += _eventProcessorHandler.GetRandomValue(0, eventInfoModel.Image.Width / 2);
+                        startPoint.Y += _eventProcessorHandler.GetRandomValue(0, eventInfoModel.Image.Height / 2);
 
                         var endPoint = new Point2D(
-                            locations[1].X + model.Image.Width / 2 + (useRoi ? roiRect.Left : 0),
-                            locations[1].Y + model.Image.Width / 2 + (useRoi ? roiRect.Top : 0));
-                        endPoint.X += _eventProcessorHandler.GetRandomValue(0, model.Image.Width / 2);
-                        endPoint.Y += _eventProcessorHandler.GetRandomValue(0, model.Image.Height / 2);
+                            locations[1].X + eventInfoModel.Image.Width / 2,
+                            locations[1].Y + eventInfoModel.Image.Width / 2);
+
+                        endPoint.X += _eventProcessorHandler.GetRandomValue(0, eventInfoModel.Image.Width / 2);
+                        endPoint.Y += _eventProcessorHandler.GetRandomValue(0, eventInfoModel.Image.Height / 2);
 
                         _eventProcessorHandler.ProcessSameImageMouseDragEvent(
-                            windowHandle, startPoint, endPoint, model, _config.DragDelay);
+                            process.MainWindowHandle, startPoint, endPoint, eventInfoModel, _config.DragDelay);
                     }
                     else
                     {
                         break;
                     }
                 }
-
-                if (searchBmp != _currentSourceBmp)
-                {
-                    searchBmp?.Dispose();
-                }
             }
             else
             {
-                if (model.EventType == EventType.Mouse)
+                var windowHandle = IntPtr.Zero;
+                var template = TemplateContainer<ApplicationTemplate>.Find(process.ProcessName);
+
+                if (string.IsNullOrEmpty(template.HandleName))
                 {
-                    _eventProcessorHandler.ProcessMouseEvent(windowHandle, model, matchedLocation, template, _config.DragDelay);
+                    windowHandle = process.MainWindowHandle;
                 }
-                else if (model.EventType == EventType.Image)
+                else
                 {
-                    _eventProcessorHandler.ProcessImageEvent(windowHandle, model, matchedLocation, template);
+                    var item = NativeHelper.GetChildHandles(process.MainWindowHandle)
+                        .FirstOrDefault(r => r.Item1.Equals(template.HandleName));
+                    windowHandle = item != null ? item.Item2 : process.MainWindowHandle;
                 }
-                else if (model.EventType == EventType.RelativeToImage)
+
+                if (eventInfoModel.EventType == EventType.Mouse)
                 {
-                    _eventProcessorHandler.ProcessRelativeToImageEvent(windowHandle, model, matchedLocation, template);
+                    _eventProcessorHandler.ProcessMouseEvent(windowHandle, eventInfoModel, matchedLocation, template, _config.DragDelay);
                 }
-                else if (model.EventType == EventType.Keyboard)
+                else if (eventInfoModel.EventType == EventType.Image)
                 {
-                    _eventProcessorHandler.ProcessKeyboardEvent(windowHandle, model);
+                    _eventProcessorHandler.ProcessImageEvent(windowHandle, eventInfoModel, matchedLocation, template);
+                }
+                else if (eventInfoModel.EventType == EventType.RelativeToImage)
+                {
+                    _eventProcessorHandler.ProcessRelativeToImageEvent(windowHandle, eventInfoModel, matchedLocation, template);
+                }
+                else if (eventInfoModel.EventType == EventType.Keyboard)
+                {
+                    _eventProcessorHandler.ProcessKeyboardEvent(windowHandle, eventInfoModel);
                 }
 
                 EventInfoModel nextModel = null;
 
-                if (model.EventToNext > 0 && model.ItemIndex != model.EventToNext)
+                if (eventInfoModel.EventToNext > 0 && eventInfoModel.ItemIndex != eventInfoModel.EventToNext)
                 {
-                    nextModel = _cacheDataManager.GetEventInfoModel(model.EventToNext);
+                    nextModel = _cacheDataManager.GetEventInfoModel(eventInfoModel.EventToNext);
+
                     if (nextModel != null)
                     {
-                        LogHelper.Debug($">>>>Next Move Event : CurrentIndex [ {model.ItemIndex} ] NextIndex [ {nextModel.ItemIndex} ] ");
+                        LogHelper.Debug($">>>>Next Move Event : CurrentIndex [ {eventInfoModel.ItemIndex} ] NextIndex [ {nextModel.ItemIndex} ] ");
                     }
                 }
+                TaskHelper.TokenCheckDelay(eventInfoModel.AfterDelay, cancellationToken);
 
-                TaskHelper.TokenCheckDelay(model.AfterDelay, cancellationToken);
                 return new EventResult(true, nextModel);
             }
 
@@ -379,44 +276,47 @@ namespace Macro.Infrastructure.Controller
             for (int i = 0; i < model.RepeatInfo.Count; ++i)
             {
                 if (TaskHelper.TokenCheckDelay(model.AfterDelay, cancellationToken) == false)
+                {
                     break;
+                }
 
                 if (_screenCaptureManager.CaptureProcessWindow(process,
                     out Bitmap sourceBmp) == false)
+                {
                     break;
+                }
 
-                _currentSourceBmp = sourceBmp;
-
-                try
+                using (sourceBmp)
                 {
                     for (int ii = 0; ii < model.SubEventItems.Count; ++ii)
                     {
                         var childModel = model.SubEventItems[ii];
-                        var childResult = SearchSingleItem(sourceBmp, childModel);
+                        var preResult = SearchEventItem(sourceBmp, childModel);
 
                         if (model.RepeatInfo.RepeatType == RepeatType.RepeatOnChildEvent)
                         {
-                            if (childResult.Similarity < _config.Similarity)
+                            if (preResult.Item1 < _config.Similarity)
                                 break;
                         }
 
-                        if (cancellationToken.IsCancellationRequested)
+                        if (cancellationToken.IsCancellationRequested == true)
                             break;
 
-                        HandleEvent(process, childModel, childResult, cancellationToken);
+                        var handleResult = HandleEvent(sourceBmp, process, childModel, cancellationToken, preResult);
+
+                        if (model.RepeatInfo.RepeatType == RepeatType.RepeatOnChildEvent)
+                        {
+                            if (handleResult.IsSuccess == false)
+                                break;
+                        }
                     }
 
                     if (model.RepeatInfo.RepeatType == RepeatType.StopOnParentImage)
                     {
-                        var parentResult = SearchSingleItem(sourceBmp, model);
-                        if (parentResult.Similarity >= _config.Similarity)
+                        var stopResult = SearchEventItem(sourceBmp, model);
+                        if (stopResult.Item1 >= _config.Similarity)
                             break;
                     }
-                }
-                finally
-                {
-                    sourceBmp?.Dispose();
-                    _currentSourceBmp = null;
                 }
             }
         }
