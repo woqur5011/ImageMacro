@@ -8,10 +8,6 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  SOLUTION: Macro.sln
-  CONFIG: Release
-
 jobs:
   build:
     runs-on: windows-latest
@@ -23,46 +19,26 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: NuGet Package Restore
-        run: nuget restore ${{ env.SOLUTION }}
+      - name: NuGet restore
+        run: nuget restore Macro.sln
 
-      - name: Build Release (x86)
-        run: >
-          msbuild ${{ env.SOLUTION }}
-          /p:Configuration=${{ env.CONFIG }}
-          /p:Platform=x86
-          /p:OutputPath=Macro/bin/x86/${{ env.CONFIG }}/
-          /p:IntermediateOutputPath=Macro/obj/x86/${{ env.CONFIG }}/
+      - name: Build
+        run: msbuild Macro.sln /p:Configuration=Release /p:Platform=x64
 
-      - name: Build Release (x64)
-        run: >
-          msbuild ${{ env.SOLUTION }}
-          /p:Configuration=${{ env.CONFIG }}
-          /p:Platform=x64
-          /p:OutputPath=Macro/bin/x64/${{ env.CONFIG }}/
-          /p:IntermediateOutputPath=Macro/obj/x64/${{ env.CONFIG }}/
-
-      - name: Show Release/exe contents
-        run: dir Release\exe /B 2>$null; if (!$?) { echo "(not found)" }
-
-      - name: Prepare Artifacts
+      - name: Collect files
         shell: pwsh
         run: |
-          $exe = "Release/exe"
-          if (Test-Path $exe) {
-            Compress-Archive -Path "$exe\*" -DestinationPath "ImageMacro-x64.zip" -Force
-            Write-Host "Created ImageMacro-x64.zip from Release/exe/"
-          } else {
-            Compress-Archive -Path "Macro/bin/x64/Release/*" -DestinationPath "ImageMacro-x64.zip" -Force
-            Write-Host "Created ImageMacro-x64.zip from Macro/bin/x64/Release/"
-          }
+          $out = "Macro/bin/x64/Release"
+          $dest = "Release/exe"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item "$out/*" -Destination $dest -Recurse -Force
+          Get-ChildItem $dest | Select-Object Name, Length | Format-Table
 
-      - name: Upload Artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ImageMacro-x64
-          path: ImageMacro-x64.zip
-          retention-days: 30
+          path: Release/exe
 
   release:
     needs: build
@@ -70,16 +46,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Artifact
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: ImageMacro-x64
 
-      - name: Create GitHub Release
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: ImageMacro-x64.zip
+          files: Release/exe/*
           draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
