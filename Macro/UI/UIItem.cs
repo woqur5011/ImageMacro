@@ -12,7 +12,9 @@ namespace Macro.UI
             ShowTitleBar = false;
             ShowActivated = false;
             ShowInTaskbar = false;
-            ResizeMode = System.Windows.ResizeMode.NoResize;
+            ResizeMode = System.Windows.ResizeMode.CanResize;
+            MinHeight = 500;
+            MaxHeight = 800;
         }
     }
 }
