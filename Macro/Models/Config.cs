@@ -146,6 +146,28 @@ namespace Macro.Models
             }
         }
 
+        private bool _enableParallelSearch = true;
+        public bool EnableParallelSearch
+        {
+            get => _enableParallelSearch;
+            set
+            {
+                _enableParallelSearch = value;
+                OnPropertyChanged(nameof(EnableParallelSearch));
+            }
+        }
+
+        private int _parallelSearchDegree = 0;
+        public int ParallelSearchDegree
+        {
+            get => _parallelSearchDegree;
+            set
+            {
+                _parallelSearchDegree = value;
+                OnPropertyChanged(nameof(ParallelSearchDegree));
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private void OnPropertyChanged(string propertyName)

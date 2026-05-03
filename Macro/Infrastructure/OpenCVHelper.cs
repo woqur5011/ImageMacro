@@ -15,33 +15,39 @@ namespace Macro.Infrastructure
     {
         public static int Search(Bitmap source, Bitmap target, out Point2D location, bool isResultDisplay = false)
         {
+            var searchResult = SearchOnly(source, target);
+            location = searchResult.Item2;
+            if (isResultDisplay)
+            {
+                DrawResultRect(source, location, target);
+            }
+            return searchResult.Item1;
+        }
+
+        public static Tuple<int, Point2D> SearchOnly(Bitmap source, Bitmap target)
+        {
             var sourceMat = BitmapConverter.ToMat(source);
             var targetMat = BitmapConverter.ToMat(target);
             if (sourceMat.Cols <= targetMat.Cols || sourceMat.Rows <= targetMat.Rows)
             {
-                location = new Point2D();
-                return 0;
+                return Tuple.Create(0, new Point2D());
             }
 
             var match = sourceMat.MatchTemplate(targetMat, TemplateMatchModes.CCoeffNormed);
             Cv2.MinMaxLoc(match, out _, out double max, out _, out Point maxLoc);
 
-            location = new Point2D()
+            return Tuple.Create(Convert.ToInt32(max * 100), new Point2D { X = maxLoc.X, Y = maxLoc.Y });
+        }
+
+        public static void DrawResultRect(Bitmap source, Point2D location, Bitmap target)
+        {
+            using (var g = Graphics.FromImage(source))
             {
-                X = maxLoc.X,
-                Y = maxLoc.Y
-            };
-            if (isResultDisplay)
-            {
-                using (var g = Graphics.FromImage(source))
+                using (var pen = new Pen(Color.Red, 2))
                 {
-                    using (var pen = new Pen(Color.Red, 2))
-                    {
-                        g.DrawRectangle(pen, new Rectangle() { X = (int)location.X, Y = (int)location.Y, Width = target.Width, Height = target.Height });
-                    }
+                    g.DrawRectangle(pen, new Rectangle() { X = (int)location.X, Y = (int)location.Y, Width = target.Width, Height = target.Height });
                 }
             }
-            return Convert.ToInt32(max * 100);
         }
         public static List<Point> MultipleSearch(Bitmap source, Bitmap target, int similarity, int maxSameRepeatCount, bool isResultDisplay = false)
         {
